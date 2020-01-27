@@ -1,12 +1,10 @@
 <template>
   <div class="container">
-      <div v-for="(alert, index) in alerts" :key="index">
-        <alert 
-        v-if="alert.showAlert"
-        v-bind:variant="alert.alertVariant"
-        v-bind:message="alert.alertMessage">
-        </alert>
-      </div>
+    <alert 
+      v-for="(alert, index) in alerts" :key="index"
+      v-bind:variant="alert.variant"
+      v-bind:message="alert.message">
+    </alert>
     <button type="button" class="btn btn-primary">HomePage</button>
   </div>
 </template>
@@ -23,19 +21,16 @@ export default {
     return {
       alerts: [
         {
-          showAlert: true,
-          alertVariant: 'danger',
-          alertMessage: 0
+          variant: 'info',
+          message: 'Hi'
         },
         {
-          showAlert: true,
-          alertVariant: 'info',
-          alertMessage: 1
+          variant: 'danger',
+          message: 'Oops..'
         },
         {
-          showAlert: true,
-          alertVariant: 'dark',
-          alertMessage: 2
+          variant: 'success',
+          message: 'OK'
         }
       ]
     }

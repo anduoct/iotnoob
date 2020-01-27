@@ -28,9 +28,6 @@
 </template>
 
 <script>
-import axios from 'axios'
-import store from '../store.js'
-
 export default {
   name: 'Register', //this is the name of the component
   data () {
@@ -39,8 +36,8 @@ export default {
         username: '',
         email: '',
         password: '',
-        submitted: false,  // 是否点击了 submit 按钮
-        errors: 0,  // 表单是否在前端验证通过，0 表示没有错误，验证通过
+        submitted: false,  // if click submit button
+        errors: 0,  // if form validation is passed
         usernameError: null,
         emailError: null,
         passwordError: null
@@ -49,7 +46,7 @@ export default {
   },
   methods: {
     onSubmit (e) {
-      this.registerForm.submitted = true  // 先更新状态
+      this.registerForm.submitted = true  // update status
       this.registerForm.errors = 0
 
       if (!this.registerForm.username) {
@@ -77,20 +74,20 @@ export default {
       }
 
       if (this.registerForm.errors > 0) {
-        // 表单验证没通过时，不继续往下执行，即不会通过 axios 调用后端API
+        // if form validation is not passed, will not call api by axios
         return false
       }
 
-      const path = 'http://localhost:5000/api/users'
+      const path = '/users'
       const payload = {
         username: this.registerForm.username,
         email: this.registerForm.email,
         password: this.registerForm.password
       }
-      axios.post(path, payload)
+      this.$axios.post(path, payload)
         .then((response) => {
           // handle success
-          store.setNewAction()
+          this.$toasted.success('Congratulations, you are now a registered user !', { icon: 'fingerprint' })
           this.$router.push('/login')
         })
         .catch((error) => {

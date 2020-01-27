@@ -1,6 +1,7 @@
 <template>
-  <nav class="navbar navbar-expand-lg navbar-light bg-light" style="margin-bottom: 20px;">
-    <div class="container">
+<section>
+  <div class="container">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light" style="margin-bottom: 20px;">
       <router-link to="/" class="navbar-brand">
         <img src="../assets/logo.png" width="30" height="30" class="d-inline-block align-top" alt="">
           iotnoob
@@ -30,7 +31,7 @@
             <a class="nav-link disabled" href="#">Messages</a>
           </li>
           <li class="nav-item">
-            <router-link to="/profile" class="nav-link">Profile</router-link>
+            <router-link v-bind:to="{ name: 'Profile', params: { id: sharedState.user_id }}" class="nav-link">Profile</router-link>
           </li>
           <li class="nav-item">
             <a v-on:click="handlerLogout" class="nav-link" href="#">Logout</a>
@@ -42,12 +43,13 @@
           </li>
         </ul>
       </div>
-    </div>
-  </nav>
+    </nav>
+  </div>
+</section>
 </template>
 
 <script>
-import store from '../store'
+import store from '../store.js'
 
 export default {
   name: 'Navbar',  //this is the name of the component
@@ -59,6 +61,7 @@ export default {
   methods: {
     handlerLogout (e) {
       store.logoutAction()
+      this.$toasted.show('You have been logged out.', { icon: 'fingerprint' })
       this.$router.push('/login')
     }
   }

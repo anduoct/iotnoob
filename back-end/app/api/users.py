@@ -1,10 +1,11 @@
 import re
-from flask import request, jsonify, url_for
+from flask import request, jsonify, url_for, g
 from app import db
 from app.api import bp
+from app.api.auth import token_auth
 from app.api.errors import bad_request
 from app.models import User
-from app.api.auth import token_auth
+
 
 @bp.route('/users', methods=['POST'])
 def create_user():
@@ -52,6 +53,9 @@ def get_users():
 @token_auth.login_required
 def get_user(id):
     # return a user
+    user = User.query.get_or_404(id)
+    if g.current_user == user:
+        return jsonify(User.query.get_or_404(id).to_dict(include_email=True))
     return jsonify(User.query.get_or_404(id).to_dict())
 
 @bp.route('/users/<int:id>', methods=['PUT'])
@@ -64,14 +68,14 @@ def update_user(id):
         return bad_request('must post JSON data.')
 
     message = {}
-    if 'username' not in data or not data.get('username', None):
+    if 'username' in data and not data.get('username', None):
         message['username'] = 'wrong username.'
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
-    if 'email' not in data or not re.match(pattern, data.get('email', None)):
+    if 'email' in data and not re.match(pattern, data.get('email', None)):
         message['email'] = 'Please provide a valid email address.'
 
     if 'username' in data and data['username'] != user.username and \
-         User.query.filter_by(username=data['username']).first():
+        User.query.filter_by(username=data['username']).first():
         message['username'] = 'Please use a different username.'
     if 'email' in data and data['email'] != user.email and \
         User.query.filter_by(email=data['email']).first():
@@ -84,8 +88,9 @@ def update_user(id):
     db.session.commit()
     return jsonify(user.to_dict())
 
-@bp.route('/users', methods=['DELETE'])
+
+@bp.route('/users/<int:id>', methods=['DELETE'])
 @token_auth.login_required
-def delete_user():
+def delete_user(id):
     # delete a user
     pass
