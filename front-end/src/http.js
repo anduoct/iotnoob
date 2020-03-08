@@ -5,7 +5,7 @@ import store from './store'
 
 // 基础配置
 axios.defaults.timeout = 5000  // 超时时间
-axios.defaults.baseURL = 'http://localhost:5000/api'
+axios.defaults.baseURL = 'http://localhost:5000'
 
 // Add a request interceptor
 axios.interceptors.request.use(function (config) {
@@ -26,7 +26,7 @@ axios.interceptors.response.use(function (response) {
     return response
 }, function (error) {
     // Do something with response error
-    switch  (error.response.status) {
+    switch (error.response.status) {
         case 401:
             // 清除 Token 及 已认证 等状态
             store.logoutAction()
@@ -34,18 +34,26 @@ axios.interceptors.response.use(function (response) {
             if (router.currentRoute.path !== '/login') {
                 Vue.toasted.error('401: 认证已失效，请先登录', { icon: 'fingerprint' })
                 router.replace({
-                path: '/login',
-                query: { redirect: router.currentRoute.path },
-            })
-        }
-        break
-  
-        case 404:
-            Vue.toasted.error('404: NOT FOUND', { icon: 'fingerprint' })
+                    path: '/login',
+                    query: { redirect: router.currentRoute.path },
+                })
+            }
+            break
+
+        case 403:
+            Vue.toasted.error('403: Forbidden', { icon: 'fingerprint' })
             router.back()
             break
-        }
-        return Promise.reject(error)
+        case 404:
+            Vue.toasted.error('404: Not Found', { icon: 'fingerprint' })
+            router.back()
+            break
+        case 500:  // 根本拿不到 500 错误，因为 CORs 不会过来
+            Vue.toasted.error('500: Oops... INTERNAL SERVER ERROR', { icon: 'fingerprint' })
+            router.back()
+            break
+    }
+    return Promise.reject(error)
 })
 
 export default axios
