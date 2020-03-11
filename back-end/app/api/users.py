@@ -8,7 +8,7 @@ from app.api.errors import bad_request, error_response
 from app.models import User, Blog
 
 
-@bp.route('/users', methods=['POST'])
+@bp.route('/users/', methods=['POST'])
 def create_user():
     # 注册
     data = request.get_json()
@@ -17,7 +17,7 @@ def create_user():
 
     message = {}
     if 'username' not in data or not data.get('username', None):
-        message['username'] = 'wrong username.'
+        message['username'] = 'Please provide a valid username.'
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' not in data or not re.match(pattern, data.get('email', None)):
         message['email'] = 'Please provide a valid email address.'
@@ -79,16 +79,17 @@ def update_user(id):
 
     message = {}
     if 'username' in data and not data.get('username', None):
-        message['username'] = 'wrong username.'
+        message['username'] = 'Please provide a valid username.'
+
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' in data and not re.match(pattern, data.get('email', None)):
         message['email'] = 'Please provide a valid email address.'
-
-    if 'username' in data and data['username'] != user.username and \
-        User.query.filter_by(username=data['username']).first():
+    if 'username' in data and data[
+            'username'] != user.username and User.query.filter_by(
+                username=data['username']).first():
         message['username'] = 'Please use a different username.'
-    if 'email' in data and data['email'] != user.email and \
-        User.query.filter_by(email=data['email']).first():
+    if 'email' in data and data['email'] != user.email and User.query.filter_by(
+            email=data['email']).first():
         message['email'] = 'Please use a different email address.'
 
     if message:
@@ -230,6 +231,7 @@ def get_user_blogs(id):
 
 
 @bp.route('/users/<int:id>/followeds-blogs/', methods=['GET'])
+@token_auth.login_required
 def get_user_followed_blogs(id):
     user = User.query.get_or_404(id)
     page = request.args.get('page', 1, type=int)
