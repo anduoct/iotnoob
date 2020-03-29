@@ -1,7 +1,7 @@
 import unittest
 from flask import current_app
 from app import create_app, db
-from app.tests import TestConfig
+from tests import TestConfig
 
 
 class BasicsTestCase(unittest.TestCase):

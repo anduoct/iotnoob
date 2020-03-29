@@ -3,7 +3,7 @@ import os
 import sys
 from app import create_app
 from app.extensions import db
-from app.models import User, Blog
+from app.models import User, Blog, Comment, Notification
 from config import Config
 
 app = create_app(Config)
@@ -23,7 +23,13 @@ def hello_world():
 
 @app.shell_context_processor
 def make_shell_context():
-    return {'db': db, 'User': User, 'Blog': Blog}
+    return {
+        'db': db,
+        'User': User,
+        'Blog': Blog,
+        'Comment': Comment,
+        'Notification': Notification
+    }
 
 
 @app.cli.command()
@@ -39,7 +45,7 @@ def test(coverage):
         sys.exit(subprocess.call(sys.argv))
 
     import unittest
-    tests = unittest.TestLoader().discover('.\\app\\tests')
+    tests = unittest.TestLoader().discover('tests')
     unittest.TextTestRunner(verbosity=2).run(tests)
 
     if COV:

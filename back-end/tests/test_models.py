@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import unittest
 from app import create_app, db
 from app.models import User, Blog
-from app.tests import TestConfig
+from tests import TestConfig
 
 
 class ModelsTestCase(unittest.TestCase):
@@ -82,10 +82,10 @@ class ModelsTestCase(unittest.TestCase):
         db.session.commit()
 
         # check the followed blogs of each user
-        f1 = u1.followed_blogs.all()
-        f2 = u2.followed_blogs.all()
-        f3 = u3.followed_blogs.all()
-        f4 = u4.followed_blogs.all()
+        f1 = u1.followeds_blogs.all()
+        f2 = u2.followeds_blogs.all()
+        f3 = u3.followeds_blogs.all()
+        f4 = u4.followeds_blogs.all()
         self.assertEqual(f1, [p2, p4])
         self.assertEqual(f2, [p3])
         self.assertEqual(f3, [p4])

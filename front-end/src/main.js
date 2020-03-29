@@ -25,21 +25,21 @@ import './assets/custom.css'
 // register the vue-toasted plugin on vue
 import VueToasted from 'vue-toasted'
 Vue.use(VueToasted, {
-  // 主题样式 primary/outline/bubble
-  theme: 'bubble',
-  // 显示在页面哪个位置
-  position: 'top-center',
-  // 显示多久时间（毫秒）
-  duration: 3000,
-  // 支持哪个图标集合
-  iconPack: 'material', // set your iconPack, defaults to material. material|fontawesome|custom-class
-  // 可以执行哪些动作
-  action: {
-    text: 'Cancel',
-    onClick: (e, toastObject) => {
-      toastObject.goAway(0)
-    }
-  },
+    // 主题样式 primary/outline/bubble
+    theme: 'bubble',
+    // 显示在页面哪个位置
+    position: 'top-center',
+    // 显示多久时间（毫秒）
+    duration: 3000,
+    // 支持哪个图标集合
+    iconPack: 'material', // set your iconPack, defaults to material. material|fontawesome|custom-class
+    // 可以执行哪些动作
+    action: {
+        text: 'Cancel',
+        onClick: (e, toastObject) => {
+            toastObject.goAway(0)
+        }
+    },
 });
 
 // register the vue-sweetalert2 plugin on vue
@@ -53,10 +53,10 @@ import hljs from 'highlight.js'
 // 样式文件，浅色：default, atelier-dune-light  深色：atom-one-dark, atom-one-dark-reasonable, monokai
 import 'highlight.js/styles/atom-one-dark-reasonable.css'
 Vue.directive('highlight', function (el) {
-  let blocks = el.querySelectorAll('pre code');
-  blocks.forEach((block) => {
-    hljs.highlightBlock(block)
-  })
+    let blocks = el.querySelectorAll('pre code');
+    blocks.forEach((block) => {
+        hljs.highlightBlock(block)
+    })
 })
 
 
@@ -68,8 +68,8 @@ Vue.prototype.$axios = axios
 Vue.prototype.$moment = moment
 
 new Vue({
-  el: '#app',
-  router,
-  render: h => h(App),
-  template: '<App/>'
+    el: '#app',
+    router,
+    render: h => h(App),
+    template: '<App/>'
 }).$mount('#app')

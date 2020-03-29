@@ -5,10 +5,10 @@ import re
 import unittest
 from app import create_app, db
 from app.models import User, Blog
-from app.tests import TestConfig
+from tests import TestConfig
 
 
-class APITestCase(unittest.TestCase):
+class UsersAPITestCase(unittest.TestCase):
     def setUp(self):
         '''每个测试之前执行'''
         self.app = create_app(TestConfig)  # 创建Flask应用
@@ -118,18 +118,26 @@ class APITestCase(unittest.TestCase):
         data = json.dumps({})
         response = self.client.post('/api/users/', headers=headers, data=data)
         self.assertEqual(response.status_code, 400)
+        json_response = json.loads(response.get_data(as_text=True))
+        self.assertEqual(json_response['message'], 'You must post JSON data.')
         # 2. 缺少 username 时
         data = json.dumps({'email': 'john@163.com', 'password': '123'})
         response = self.client.post('/api/users/', headers=headers, data=data)
         self.assertEqual(response.status_code, 400)
+        json_response = json.loads(response.get_data(as_text=True))
+        self.assertEqual(json_response['message']['username'], 'Please provide a valid username.')
         # 3. 缺少 email 时
         data = json.dumps({'username': 'john', 'password': '123'})
         response = self.client.post('/api/users/', headers=headers, data=data)
         self.assertEqual(response.status_code, 400)
+        json_response = json.loads(response.get_data(as_text=True))
+        self.assertEqual(json_response['message']['email'], 'Please provide a valid email address.')
         # 4. 缺少 password 时
         data = json.dumps({'username': 'john', 'email': 'john@163.com'})
         response = self.client.post('/api/users/', headers=headers, data=data)
         self.assertEqual(response.status_code, 400)
+        json_response = json.loads(response.get_data(as_text=True))
+        self.assertEqual(json_response['message']['password'], 'Please provide a valid password.')
         # 5. username 或者 email 已存在时
         u = User(username='john', email='john@163.com')
         u.set_password('123')
@@ -212,6 +220,8 @@ class APITestCase(unittest.TestCase):
         data = json.dumps({})
         response = self.client.put(url, headers=headers, data=data)
         self.assertEqual(response.status_code, 400)
+        json_response = json.loads(response.get_data(as_text=True))
+        self.assertEqual(json_response['message'], 'You must post JSON data.')
         # 2. 如果传入了 username 或者 email，但是不是合法的数据时
         data = json.dumps({'username': '', 'email': '1@1'})
         response = self.client.put(url, headers=headers, data=data)
@@ -282,7 +292,7 @@ class APITestCase(unittest.TestCase):
         response = self.client.get('/api/follow/2', headers=headers)
         self.assertEqual(response.status_code, 200)
         json_response = json.loads(response.get_data(as_text=True))
-        self.assertEqual(json_response['message'], 'You are now following 2.')
+        self.assertEqual(json_response['message'], 'You are now following david.')
         # 3. 已经关注过的人，你不能重复关注
         response = self.client.get('/api/follow/2', headers=headers)
         self.assertEqual(response.status_code, 400)
@@ -315,12 +325,12 @@ class APITestCase(unittest.TestCase):
         response = self.client.get('/api/follow/2', headers=headers)
         self.assertEqual(response.status_code, 200)
         json_response = json.loads(response.get_data(as_text=True))
-        self.assertEqual(json_response['message'], 'You are now following 2.')
+        self.assertEqual(json_response['message'], 'You are now following david.')
         # 开始取消关注
         response = self.client.get('/api/unfollow/2', headers=headers)
         self.assertEqual(response.status_code, 200)
         json_response = json.loads(response.get_data(as_text=True))
-        self.assertEqual(json_response['message'], 'You are not following 2 anymore.')
+        self.assertEqual(json_response['message'], 'You are not following david anymore.')
 
     def test_get_followeds(self):
         # 测试获取你已关注的人的列表
@@ -392,7 +402,7 @@ class APITestCase(unittest.TestCase):
         self.assertEqual(json_response['items'][0]['title'], 'second blog from john')  # 倒序排列
         self.assertEqual(json_response['items'][1]['title'], 'first blog from john')
 
-    def test_get_user_followed_blogs(self):
+    def test_get_user_followeds_blogs(self):
         # 测试返回你关注的人的博客列表
         u1 = User(username='john', email='john@163.com')
         u1.set_password('123')

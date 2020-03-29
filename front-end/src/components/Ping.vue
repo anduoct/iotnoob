@@ -7,6 +7,8 @@
     </alert>
 
     <button type="button" class="btn btn-primary">{{ msg }}</button>
+
+    
   </div>
 </template>
 
@@ -39,7 +41,7 @@ export default {
   },
   methods: {
     getMessage () {
-      const path = `/api/ping`
+      const path = '/api/ping'
       this.$axios.get(path)
         .then((res) => {
           this.msg = res.data
