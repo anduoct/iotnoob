@@ -3,7 +3,7 @@ import os
 import sys
 from app import create_app
 from app.extensions import db
-from app.models import User, Blog, Comment, Notification
+from app.models import User, Blog, Comment, Notification, Message
 from config import Config
 
 app = create_app(Config)
@@ -28,7 +28,8 @@ def make_shell_context():
         'User': User,
         'Blog': Blog,
         'Comment': Comment,
-        'Notification': Notification
+        'Notification': Notification, 
+		'Message': Message
     }
 
 

@@ -6,6 +6,7 @@ import store from './store'
 
 // 基础配置
 axios.defaults.baseURL = 'http://localhost:5000'
+// axios.defaults.baseURL = 'http://127.0.0.1:5000'
 // axios.defaults.timeout = 5000  // 超时时间（毫秒）
 // axios.defaults.retry = 2  // 重试次数
 // axios.defaults.retryDelay = 100  // 重试之间的间隔时间（毫秒）
@@ -32,10 +33,8 @@ axios.interceptors.response.use(function (response) {
 
 }, function (error) {
 
-    if (typeof error.response == 'undefined') {
-        Vue.toasted.error('无法连接Flask API，请联系管理员', { icon: 'fingerprint' })
-    } else {
-        // Do something with response error
+    if (error.response) {
+        // 匹配不同的响应码
         switch (error.response.status) {
             case 401:
                 // 清除 Token 及 已认证 等状态
@@ -63,7 +62,13 @@ axios.interceptors.response.use(function (response) {
                 router.back()
                 break
         }
+    } else if (error.request) {
+        console.log(error.request)
+        Vue.toasted.error('The request has not been sent to Flask API，because OPTIONS get error', { icon: 'fingerprint' })
+    } else {
+        console.log('Error: ', error.message)
     }
+    console.log(error.config)
 
     return Promise.reject(error)
 })

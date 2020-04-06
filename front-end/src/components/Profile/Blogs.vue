@@ -110,7 +110,7 @@ export default {
   },
   data () {
     return {
-      user: '',
+      sharedState: store.state,
       blogs: '',
       editBlogForm: {
         title: '',
