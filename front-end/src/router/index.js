@@ -4,9 +4,12 @@ import VueRouter from 'vue-router'
 import VueScrollTo from 'vue-scrollto'
 // 首页
 import Home from '@/components/Home'
-// 用户认证：注册与登录
+// 用户认证：注册、登录、验证账户、重置密码请求、重置密码
 import Register from '@/components/Auth/Register'
 import Login from '@/components/Auth/Login'
+import Unconfirmed from '@/components/Auth/Unconfirmed'
+import ResetPasswordRequest from '@/components/Auth/ResetPasswordRequest'
+import ResetPassword from '@/components/Auth/ResetPassword'
 // 用户个人主页
 import User from '@/components/Profile/User'
 import Overview from '@/components/Profile/Overview'
@@ -21,6 +24,7 @@ import Email from '@/components/Settings/Email'
 import Notification from '@/components/Settings/Notification'
 // 用户资源
 import Resource from '@/components/Resources/Resource'
+import LikedBlogsResource from '@/components/Resources/LikedBlogs'
 import CommentsResource from '@/components/Resources/CommentsResource'
 import MessagesIndexResource from '@/components/Resources/Messages/Index'
 import SentMessagesResource from '@/components/Resources/Messages/List'
@@ -31,7 +35,8 @@ import RecivedComments from '@/components/Notifications/RecivedComments'
 import MessagesIndex from '@/components/Notifications/Messages/Index'
 import RecivedMessages from '@/components/Notifications/Messages/List'
 import MessagesHistory from '@/components/Notifications/Messages/History'
-import Likes from '@/components/Notifications/Likes'
+import BlogsLikes from '@/components/Notifications/BlogsLikes'
+import CommentsLikes from '@/components/Notifications/CommentsLikes'
 import FollowingBlogs from '@/components/Notifications/FollowingBlogs'
 // 博客详情页
 import BlogDetail from '@/components/BlogDetail'
@@ -73,7 +78,7 @@ const scrollBehavior = (to, from, savedPosition) => {
     }
 }
 const router = new VueRouter({
-    mode: 'history',  // 文章详情页 TOC 的锚点以数字开头，会被报错不合法: [Vue warn]: Error in nextTick: "SyntaxError: Failed to execute 'querySelector' on 'Document': '#13-git-clone' is not a valid selector."
+    // mode: 'history',  // 文章详情页 TOC 的锚点以数字开头，会被报错不合法: [Vue warn]: Error in nextTick: "SyntaxError: Failed to execute 'querySelector' on 'Document': '#13-git-clone' is not a valid selector."
     scrollBehavior,  // 不用这个，在需要跳转的改用 vue-scrollto
     routes: [
         {
@@ -90,6 +95,24 @@ const router = new VueRouter({
             path: '/register',
             name: 'Register',
             component: Register
+        },
+        {
+          path: '/unconfirmed',
+          name: 'Unconfirmed',
+          component: Unconfirmed,
+          meta: {
+            requiresAuth: true
+          }
+        },
+        {
+          path: '/reset-password-request',
+          name: 'ResetPasswordRequest',
+          component: ResetPasswordRequest
+        },
+        {
+          path: '/reset-password',
+          name: 'ResetPassword',
+          component: ResetPassword
         },
         {
             path: '/user/:id',
@@ -140,16 +163,17 @@ const router = new VueRouter({
             children: [
                 { path: '', component: Blogs },
                 { path: 'blogs', name: 'BlogsResource', component: Blogs },
+                { path: 'liked-blogs', name: 'LikedBlogsResource', component: LikedBlogsResource },
                 { path: 'comments', name: 'CommentsResource', component: CommentsResource },
-                { 
-                  path: 'messages', 
-                  component: MessagesIndexResource,
-                  children: [
-                    // 默认匹配，你给哪些人发送过私信
-                    { path: '', name: 'MessagesIndexResource', component: SentMessagesResource },
-                    // 与某个用户之间的全部历史对话记录
-                    { path: 'history', name: 'MessagesHistoryResource', component: MessagesHistoryResource }
-                  ]
+                {
+                    path: 'messages',
+                    component: MessagesIndexResource,
+                    children: [
+                        // 默认匹配，你给哪些人发送过私信
+                        { path: '', name: 'MessagesIndexResource', component: SentMessagesResource },
+                        // 与某个用户之间的全部历史对话记录
+                        { path: 'history', name: 'MessagesHistoryResource', component: MessagesHistoryResource }
+                    ]
                 }
             ],
             meta: {
@@ -163,18 +187,19 @@ const router = new VueRouter({
             children: [
                 { path: '', component: RecivedComments },
                 { path: 'comments', name: 'RecivedComments', component: RecivedComments },
-                { 
-                  path: 'messages', 
-                  component: MessagesIndex,
-                  children: [
-                    // 默认匹配，哪些人给你发送过私信
-                    { path: '', name: 'MessagesIndex', component: RecivedMessages },
-                    // 与某个用户之间的全部历史对话记录
-                    { path: 'history', name: 'MessagesHistory', component: MessagesHistory }
-                  ]
+                {
+                    path: 'messages',
+                    component: MessagesIndex,
+                    children: [
+                        // 默认匹配，哪些人给你发送过私信
+                        { path: '', name: 'MessagesIndex', component: RecivedMessages },
+                        // 与某个用户之间的全部历史对话记录
+                        { path: 'history', name: 'MessagesHistory', component: MessagesHistory }
+                    ]
                 },
                 { path: 'follows', name: 'Follows', component: Followers },
-                { path: 'likes', name: 'Likes', component: Likes },
+                { path: 'blogs-likes', name: 'BlogsLikes', component: BlogsLikes },
+                { path: 'comments-likes', name: 'CommentsLikes', component: CommentsLikes },
                 { path: 'following-blogs', name: 'FollowingBlogs', component: FollowingBlogs }
             ],
             meta: {
@@ -197,18 +222,35 @@ const router = new VueRouter({
 
 router.beforeEach((to, from, next) => {
     const token = window.localStorage.getItem('iotnoob-token')
+    if (token) {
+      var payload = JSON.parse(atob(token.split('.')[1]))
+    }
     if (to.matched.some(record => record.meta.requiresAuth) && (!token || token === null)) {
+    // 1. 用户未登录，但想访问需要认证的相关路由时，跳转到 登录 页
         Vue.toasted.show('Please log in to access this page.', { icon: 'fingerprint' })
         next({
             path: '/login',
             query: { redirect: to.fullPath }
         })
-    } else if (token && to.name == 'Login') {
-        // 用户已登录，但又去访问登录页面时不让他过去
+      } else if (token && !payload.confirmed && to.name != 'Unconfirmed') {
+        // 2. 用户刚注册，但是还没确认邮箱地址时，全部跳转到 认证提示 页面
+        Vue.toasted.show('Please confirm your accout to access this page.', { icon: 'fingerprint' })
+        next({
+          path: '/unconfirmed',
+          query: { redirect: to.fullPath }
+        })
+      } else if (token && payload.confirmed && to.name == 'Unconfirmed') {
+        // 3. 用户账户已确认，但又去访问 认证提示 页面时不让他过去
+        next({
+          path: '/'
+        })
+      } else if (token && (to.name == 'Login' || to.name == 'Register' || to.name == 'ResetPasswordRequest' || to.name == 'ResetPassword')) {
+    // 4. 用户已登录，但又去访问 登录/注册/请求重置密码/重置密码 页面时不让他过去
         next({
             path: from.fullPath
         })
-    } else if (to.matched.length === 0) {  // 要前往的路由不存在时
+    } else if (to.matched.length === 0) {  
+    // 5. 要前往的路由不存在时
         Vue.toasted.error('404: Not Found', { icon: 'fingerprint' })
         if (from.name) {
             next({
@@ -220,6 +262,7 @@ router.beforeEach((to, from, next) => {
             })
         }
     } else {
+    // 6. 正常路由出口
         next()
     }
 })

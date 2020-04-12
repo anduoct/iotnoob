@@ -72,12 +72,13 @@ export default {
       }
 
       if (this.registerForm.errors > 0) {
-        // if form validation is not passed, will not call api by axios
+        // 表单验证没通过时，不继续往下执行，即不会通过 axios 调用后端API
         return false
       }
 
       const path = '/api/users'
       const payload = {
+        confirm_email_base_url: window.location.href.split('/', 4).join('/') + '/unconfirmed/?token=',
         username: this.registerForm.username,
         email: this.registerForm.email,
         password: this.registerForm.password
@@ -85,7 +86,7 @@ export default {
       this.$axios.post(path, payload)
         .then((response) => {
           // handle success
-          this.$toasted.success('Congratulations, you are now a registered user !', { icon: 'fingerprint' })
+          this.$toasted.success('A confirmation email has been sent to you by email.', { icon: 'fingerprint' })
           this.$router.push('/login')
         })
         .catch((error) => {

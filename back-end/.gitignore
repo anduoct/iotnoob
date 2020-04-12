@@ -4,3 +4,6 @@ venv/
 .env
 app.db
 iotnoob.log*
+
+# Unit test / coverage reports
+tmp/

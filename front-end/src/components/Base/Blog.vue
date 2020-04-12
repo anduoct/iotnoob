@@ -30,6 +30,11 @@
             </a>
           </li>
           <li class="list-inline-item g-mr-20">
+            <router-link v-bind:to="{ path: `/blog/${blog.id}#like-blog` }" class="g-color-gray-dark-v5 g-text-underline--none--hover">
+              <i class="icon-heart g-pos-rel g-top-1 g-mr-3"></i> {{ blog.likers_count }}
+            </router-link>
+          </li>
+          <li class="list-inline-item g-mr-20">
             <router-link v-bind:to="{ path: `/blog/${blog.id}#comment-list-wrap` }" class="g-color-gray-dark-v5 g-text-underline--none--hover">
               <i class="icon-bubble g-pos-rel g-top-1 g-mr-3"></i> {{ blog.comments_count }}
             </router-link>

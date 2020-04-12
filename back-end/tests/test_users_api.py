@@ -375,8 +375,8 @@ class UsersAPITestCase(unittest.TestCase):
         response = self.client.get('/api/users/1/followers/', headers=headers)
         self.assertEqual(response.status_code, 200)
         json_response = json.loads(response.get_data(as_text=True))
-        self.assertEqual(json_response['items'][0]['username'], 'david')
-        self.assertEqual(json_response['items'][1]['username'], 'susan')
+        self.assertEqual(json_response['items'][0]['username'], 'susan')
+        self.assertEqual(json_response['items'][1]['username'], 'david')
 
     def test_get_user_blogs(self):
         # 测试返回用户自己的博客列表

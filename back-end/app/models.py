@@ -53,11 +53,126 @@ comments_likes = db.Table(
 
 # 黑名单(user_id 屏蔽 block_id)
 blacklist = db.Table(
-    'blacklist',
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    'blacklist', db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
     db.Column('block_id', db.Integer, db.ForeignKey('users.id')),
-    db.Column('timestamp', db.DateTime, default=datetime.utcnow)
-)
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow))
+
+# 喜欢文章
+blogs_likes = db.Table(
+    'blogs_likes',
+	db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+    db.Column('blog_id', db.Integer, db.ForeignKey('blogs.id')),
+    db.Column('timestamp', db.DateTime, default=datetime.utcnow))
+
+
+class Permission:
+    '''权限认证中的各种操作，对应二进制的位，比如
+    FOLLOW: 0b00000001，转换为十六进制为 0x01
+    COMMENT: 0b00000010，转换为十六进制为 0x02
+    WRITE: 0b00000100，转换为十六进制为 0x04
+    ...
+    ADMIN: 0b10000000，转换为十六进制为 0x80
+
+    中间还预留了第 4、5、6、7 共4位二进制位，以备后续增加操作权限
+    '''
+    # 关注其它用户的权限
+    FOLLOW = 0x01
+    # 发表评论、评论点赞与踩的权限
+    COMMENT = 0x02
+    # 撰写文章的权限
+    WRITE = 0x04
+    # 管理网站的权限(对应管理员角色)
+    ADMIN = 0x80
+
+
+class Role(PaginatedAPIMixin, db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(255), unique=True)
+    name = db.Column(db.String(255))  # 角色名称
+    default = db.Column(db.Boolean, default=False, index=True)  # 当新增用户时，是否将当前角色作为默认角色赋予新用户
+    permissions = db.Column(db.Integer)  # 角色拥有的权限，各操作对应一个二进制位，能执行某项操作的角色，其位会被设为 1
+    users = db.relationship('User', backref='role', lazy='dynamic')
+
+    def __init__(self, **kwargs):
+        super(Role, self).__init__(**kwargs)
+        if self.permissions is None:
+            self.permissions = 0
+
+    @staticmethod
+    def insert_roles():
+        '''应用部署时，应该主动执行此函数，添加以下角色
+        注意: 未登录的用户，可以浏览，但不能评论或点赞等
+        shutup:        0b0000 0000 (0x00) 用户被关小黑屋，收回所有权限
+        reader:        0b0000 0011 (0x03) 读者，可以关注别人、评论与点赞，但不能发表文章
+        author:        0b0000 0111 (0x07) 作者，可以关注别人、评论与点赞，发表文章
+        administrator: 0b1000 0111 (0x87) 超级管理员，拥有全部权限
+
+        以后如果要想添加新角色，或者修改角色的权限，修改 roles 数组，再运行函数即可
+        '''
+        roles = {
+            'shutup': ('小黑屋', ()),
+            'reader': ('读者', (Permission.FOLLOW, Permission.COMMENT)),
+            'author': ('作者', (Permission.FOLLOW, Permission.COMMENT, Permission.WRITE)),
+            'administrator': ('管理员', (Permission.FOLLOW, Permission.COMMENT, Permission.WRITE, Permission.ADMIN)),
+        }
+        default_role = 'reader'
+        for r in roles:  # r 是字典的键
+            role = Role.query.filter_by(slug=r).first()
+            if role is None:
+                role = Role(slug=r, name=roles[r][0])
+            role.reset_permissions()
+            for perm in roles[r][1]:
+                role.add_permission(perm)
+            role.default = (role.slug == default_role)
+            db.session.add(role)
+        db.session.commit()
+
+    def reset_permissions(self):
+        self.permissions = 0
+
+    def has_permission(self, perm):
+        return self.permissions & perm == perm
+
+    def add_permission(self, perm):
+        if not self.has_permission(perm):
+            self.permissions += perm
+
+    def remove_permission(self, perm):
+        if self.has_permission(perm):
+            self.permissions -= perm
+
+    def get_permissions(self):
+        '''获取角色的具体操作权限列表'''
+        p = [(Permission.FOLLOW, 'follow'), (Permission.COMMENT, 'comment'), (Permission.WRITE, 'write'), (Permission.ADMIN, 'admin')]
+        # 过滤掉没有权限，注意不能用 for 循环，因为遍历列表时删除元素可能结果并不是你想要的，参考: https://segmentfault.com/a/1190000007214571
+        new_p = filter(lambda x: self.has_permission(x[0]), p)
+        return ','.join([x[1] for x in new_p])  # 用逗号拼接成str
+
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'slug': self.slug,
+            'name': self.name,
+            'default': self.default,
+            'permissions': self.permissions,
+            '_links': {
+                'self': url_for('api.get_role', id=self.id)
+            }
+        }
+        return data
+
+    def from_dict(self, data):
+        for field in ['slug', 'name', 'permissions']:
+            if field in data:
+                setattr(self, field, data[field])
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return '<Role {}>'.format(self.name)
+
 
 class User(PaginatedAPIMixin, db.Model):
     # 设置数据库表名，Blog模型中的外键 user_id 会引用 users.id
@@ -95,8 +210,10 @@ class User(PaginatedAPIMixin, db.Model):
     last_recived_comments_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 用户的粉丝 页面的时间，用来判断哪些粉丝是新的
     last_follows_read_time = db.Column(db.DateTime)
-    # 用户最后一次查看 收到的点赞 页面的时间，用来判断哪些点赞是新的
-    last_likes_read_time = db.Column(db.DateTime)
+    # 用户最后一次查看 收到的文章被喜欢 页面的时间，用来判断哪些喜欢是新的
+    last_blogs_likes_read_time = db.Column(db.DateTime)
+    # 用户最后一次查看 收到的评论点赞 页面的时间，用来判断哪些点赞是新的
+    last_comments_likes_read_time = db.Column(db.DateTime)
     # 用户最后一次查看 关注的人的博客 页面的时间，用来判断哪些文章是新的
     last_followeds_blogs_read_time = db.Column(db.DateTime)
     # 用户的通知
@@ -120,19 +237,26 @@ class User(PaginatedAPIMixin, db.Model):
     last_messages_read_time = db.Column(db.DateTime)
     # harassers 骚扰者(被拉黑的人)
     # sufferers 受害者
-    harassers = db.relationship(
-        'User', secondary=blacklist,
-        primaryjoin=(blacklist.c.user_id == id),
-        secondaryjoin=(blacklist.c.block_id == id),
-        backref=db.backref('sufferers', lazy='dynamic'), lazy='dynamic')
-
-    def __repr__(self):
-        return '<User {}>'.format(self.username)
+    harassers = db.relationship('User',
+                                secondary=blacklist,
+                                primaryjoin=(blacklist.c.user_id == id),
+                                secondaryjoin=(blacklist.c.block_id == id),
+                                backref=db.backref('sufferers',
+                                                   lazy='dynamic'),
+                                lazy='dynamic')
+	# 用户注册后，需要先确认邮箱
+    confirmed = db.Column(db.Boolean, default=False)
+    # 用户所属的角色
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    # 用户的RQ后台任务
+    tasks = db.relationship('Task', backref='user', lazy='dynamic')
 
     def set_password(self, password):
+        '''设置用户密码，保存为 Hash 值'''
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        '''验证密码与保存的 Hash 值是否匹配'''
         return check_password_hash(self.password_hash, password)
 
     def avatar(self, size):
@@ -155,6 +279,9 @@ class User(PaginatedAPIMixin, db.Model):
             'blogs_count': self.blogs.count(),
             'followeds_blogs_count': self.followeds_blogs().count(),
             'comments_count': self.comments.count(),
+            'confirmed': self.confirmed,
+            'role_id': self.role_id,
+            'role_name': Role.query.get_or_404(self.role_id).name,
             '_links': {
                 'self':
                 url_for('api.get_user', id=self.id),
@@ -169,7 +296,9 @@ class User(PaginatedAPIMixin, db.Model):
                 'followeds_blogs':
                 url_for('api.get_user_followeds_blogs', id=self.id),
                 'comments':
-                url_for('api.get_user_comments', id=self.id)
+                url_for('api.get_user_comments', id=self.id),
+                'role':
+				url_for('api.get_role', id=self.role_id)
             }
         }
         if include_email:
@@ -177,25 +306,37 @@ class User(PaginatedAPIMixin, db.Model):
         return data
 
     def from_dict(self, data, new_user=False):
-        for field in ['username', 'email', 'name', 'location', 'about_me']:
+        for field in ['username', 'email', 'name', 'location', 'about_me', 'confirmed', 'role_id']:
             if field in data:
                 setattr(self, field, data[field])
         if new_user and 'password' in data:
             self.set_password(data['password'])
+            # 新建用户时，给用户自动分配角色
+            if self.role is None:
+                if self.email in current_app.config['ADMINS']:
+                    self.role = Role.query.filter_by(slug='administrator').first()
+                else:
+                    self.role = Role.query.filter_by(default=True).first()
 
     def ping(self):
+        '''更新用户的最后访问时间'''
         self.last_seen = datetime.utcnow()
         db.session.add(self)
 
     def get_jwt(self, expires_in=3600):
+        '''用户登录后，发放有效的 JWT'''
         now = datetime.utcnow()
         payload = {
             'user_id':
             self.id,
+			'confirmed': 
+			self.confirmed,
             'user_name':
             self.name if self.name else self.username,
             'user_avatar':
             base64.b64encode(self.avatar(24).encode('utf-8')).decode('utf-8'),
+			'permissions':
+			self.role.get_permissions(),
             'exp':
             now + timedelta(seconds=expires_in),
             'iat':
@@ -207,6 +348,7 @@ class User(PaginatedAPIMixin, db.Model):
 
     @staticmethod
     def verify_jwt(token):
+        '''验证 JWT 的有效性'''
         try:
             payload = jwt.decode(token,
                                  current_app.config['SECRET_KEY'],
@@ -271,12 +413,13 @@ class User(PaginatedAPIMixin, db.Model):
         q2 = set()
         for c in self.comments:
             q2 = q2 | c.get_descendants()
-        q2 = q2 - set(self.comments.all())  
-		# 除去子孙中，用户自己发的(因为是多级评论，用户可能还会在子孙中盖楼)，自己回复的不用通知
+        q2 = q2 - set(self.comments.all())
+        # 除去子孙中，用户自己发的(因为是多级评论，用户可能还会在子孙中盖楼)，自己回复的不用通知
         # 用户收到的总评论集合为 q1 与 q2 的并集
         recived_comments = q1 | q2
         # 最后，再过滤掉 last_read_time 之前的评论
-        return len([c for c in recived_comments if c.timestamp > last_read_time])
+        return len(
+            [c for c in recived_comments if c.timestamp > last_read_time])
 
     def new_follows(self):
         '''用户的新粉丝计数'''
@@ -284,9 +427,10 @@ class User(PaginatedAPIMixin, db.Model):
         return self.followers.filter(
             followers.c.timestamp > last_read_time).count()
 
-    def new_likes(self):
-        '''用户收到的新点赞计数'''
-        last_read_time = self.last_likes_read_time or datetime(1900, 1, 1)
+    def new_comments_likes(self):
+        '''用户收到的新评论点赞计数'''
+        last_read_time = self.last_comments_likes_read_time or datetime(
+            1900, 1, 1)
         # 当前用户发表的所有评论当中，哪些被点赞了
         comments = self.comments.join(comments_likes).all()
         # 新的点赞记录计数
@@ -333,6 +477,89 @@ class User(PaginatedAPIMixin, db.Model):
         if self.is_blocking(user):
             self.harassers.remove(user)
 
+    def new_blogs_likes(self):
+        '''用户收到的文章被喜欢的新计数'''
+        last_read_time = self.last_blogs_likes_read_time or datetime(
+            1900, 1, 1)
+        # 当前用户发布的文章当中，哪些文章被喜欢了
+        blogs = self.blogs.join(blogs_likes).all()
+        # 新的喜欢记录计数
+        new_likes_count = 0
+        for p in blogs:
+            # 获取喜欢时间
+            for u in p.likers:
+                if u != self:  # 用户自己喜欢自己的文章不需要被通知
+                    res = db.engine.execute(
+                        "select * from blogs_likes where user_id={} and blog_id={}"
+                        .format(u.id, p.id))
+                    timestamp = datetime.strptime(
+                        list(res)[0][2], '%Y-%m-%d %H:%M:%S.%f')
+                    # 判断本条喜欢记录是否为新的
+                    if timestamp > last_read_time:
+                        new_likes_count += 1
+        return new_likes_count
+
+    def generate_confirm_jwt(self, expires_in=3600):
+        '''生成确认账户的 JWT'''
+        now = datetime.utcnow()
+        payload = {
+            'confirm': self.id,
+            'exp': now + timedelta(seconds=expires_in),
+            'iat': now
+        }
+        return jwt.encode(
+            payload,
+            current_app.config['SECRET_KEY'],
+            algorithm='HS256').decode('utf-8')
+
+    def verify_confirm_jwt(self, token):
+        '''用户点击确认邮件中的URL后，需要检验 JWT，如果检验通过，则把新添加的 confirmed 属性设为 True'''
+        try:
+            payload = jwt.decode(
+                token,
+                current_app.config['SECRET_KEY'],
+                algorithms=['HS256'])
+        except (jwt.exceptions.ExpiredSignatureError,
+                jwt.exceptions.InvalidSignatureError,
+                jwt.exceptions.DecodeError) as e:
+            # Token过期，或被人修改，那么签名验证也会失败
+            return False
+        if payload.get('confirm') != self.id:
+            return False
+        self.confirmed = True
+        db.session.add(self)
+        return True
+
+    def generate_reset_password_jwt(self, expires_in=3600):
+        '''生成重置账户密码的 JWT'''
+        now = datetime.utcnow()
+        payload = {
+            'reset_password': self.id,
+            'exp': now + timedelta(seconds=expires_in),
+            'iat': now
+        }
+        return jwt.encode(
+            payload,
+            current_app.config['SECRET_KEY'],
+            algorithm='HS256').decode('utf-8')
+
+    @staticmethod
+    def verify_reset_password_jwt(token):
+        '''用户点击重置密码邮件中的URL后，需要检验 JWT
+        如果检验通过，则返回 JWT 中存储的 id 所对应的用户实例'''
+        try:
+            payload = jwt.decode(
+                token,
+                current_app.config['SECRET_KEY'],
+                algorithms=['HS256'])
+        except (jwt.exceptions.ExpiredSignatureError,
+                jwt.exceptions.InvalidSignatureError,
+                jwt.exceptions.DecodeError) as e:
+            # Token过期，或被人修改，那么签名验证也会失败
+            return None
+        return User.query.get(payload.get('reset_password'))
+
+
 class Blog(PaginatedAPIMixin, db.Model):
     __tablename__ = 'blogs'
     id = db.Column(db.Integer, primary_key=True)
@@ -341,13 +568,18 @@ class Blog(PaginatedAPIMixin, db.Model):
     content = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     views = db.Column(db.Integer, default=0)
-    # 外键，当user下有blog时不允许删除user，仅仅是ORM-level “delete” cascade
-    # db.ForeignKey('user.id', ondelete='CASCADE') 会同时在数据库指定外键层的级联删除
+    # 外键, 直接操纵数据库当user下面有blogs时不允许删除user，下面仅仅是 ORM-level “delete” cascade
+    # db.ForeignKey('users.id', ondelete='CASCADE') 会同时在数据库中指定 FOREIGN KEY level “ON DELETE” cascade
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     comments = db.relationship('Comment',
                                backref='blog',
                                lazy='dynamic',
                                cascade='all, delete-orphan')
+    # 博客文章与喜欢/收藏它的人是多对多关系
+    likers = db.relationship('User',
+                             secondary=blogs_likes,
+                             backref=db.backref('liked_blogs', lazy='dynamic'),
+                             lazy='dynamic')
 
     def __repr__(self):
         return '<Blog {}>'.format(self.title)
@@ -363,19 +595,35 @@ class Blog(PaginatedAPIMixin, db.Model):
 
     def to_dict(self):
         data = {
-            'id': self.id,
-            'title': self.title,
-            'summary': self.summary,
-            'content': self.content,
-            'timestamp': self.timestamp,
-            'views': self.views,
+            'id':
+            self.id,
+            'title':
+            self.title,
+            'summary':
+            self.summary,
+            'content':
+            self.content,
+            'timestamp':
+            self.timestamp,
+            'views':
+            self.views,
+            'likers_id': [user.id for user in self.likers],
+            'likers': [{
+                'id': user.id,
+                'username': user.username,
+                'name': user.name,
+                'avatar': user.avatar(128)
+            } for user in self.likers],
             'author': {
                 'id': self.author.id,
                 'username': self.author.username,
                 'name': self.author.name,
                 'avatar': self.author.avatar(128)
             },
-            'comments_count': self.comments.count(),
+            'likers_count':
+            self.likers.count(),
+            'comments_count':
+            self.comments.count(),
             '_links': {
                 'self': url_for('api.get_blog', id=self.id),
                 'author_url': url_for('api.get_user', id=self.author_id),
@@ -388,6 +636,20 @@ class Blog(PaginatedAPIMixin, db.Model):
         for field in ['title', 'summary', 'content', 'timestamp', 'views']:
             if field in data:
                 setattr(self, field, data[field])
+
+    def is_liked_by(self, user):
+        '''判断用户 user 是否已经收藏过该文章'''
+        return user in self.likers
+
+    def liked_by(self, user):
+        '''收藏'''
+        if not self.is_liked_by(user):
+            self.likers.append(user)
+
+    def unliked_by(self, user):
+        '''取消收藏'''
+        if self.is_liked_by(user):
+            self.likers.remove(user)
 
 
 db.event.listen(
@@ -424,7 +686,7 @@ class Comment(PaginatedAPIMixin, db.Model):
         return '<Comment {}>'.format(self.id)
 
     def get_descendants(self):
-        '''获取一级评论的所有子孙'''
+        '''获取评论的所有子孙'''
         data = set()
 
         def descendants(comment):
@@ -432,6 +694,7 @@ class Comment(PaginatedAPIMixin, db.Model):
                 data.update(comment.children)
                 for child in comment.children:
                     descendants(child)
+
         descendants(self)
         return data
 

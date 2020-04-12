@@ -257,8 +257,8 @@ export default {
           this.blogForm.title = '',
           this.blogForm.summary = '',
           this.blogForm.content = ''
-          // 必须加个动态参数，不然路由没变化的话，UserBlogsList 组件不会刷新重新加载博客列表
-          this.$router.push({ name: 'UserBlogsList', query: { id: response.data.id } })
+          // 必须加个动态参数，不然路由没变化的话，UserBlogs 组件不会刷新重新加载博客列表
+          this.$router.push({ name: 'UserBlogs', query: { pid: response.data.id } })
         })
         .catch((error) => {
           // handle error
@@ -280,7 +280,7 @@ export default {
       })
     })
   },
-  // 当 id 变化后重新加载数据
+  // 当路由变化后重新加载数据
   beforeRouteUpdate (to, from, next) {
     next()
     this.getUser(to.params.id)

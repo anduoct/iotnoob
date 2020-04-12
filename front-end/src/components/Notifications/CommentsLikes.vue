@@ -5,7 +5,7 @@
       <!-- Panel Header -->
       <div class="card-header d-flex align-items-center justify-content-between g-bg-gray-light-v5 border-0 g-mb-15">
         <h3 class="h6 mb-0">
-          <i class="icon-bubbles g-pos-rel g-top-1 g-mr-5"></i> Recived Likes <small v-if="likes">(共 {{ likes._meta.total_items }} 条, {{ likes._meta.total_pages }} 页)</small>
+          <i class="icon-bubbles g-pos-rel g-top-1 g-mr-5"></i> Recived Comments Likes <small v-if="likes">(共 {{ likes._meta.total_items }} 条, {{ likes._meta.total_pages }} 页)</small>
         </h3>
         <div class="dropdown g-mb-10 g-mb-0--md">
           <span class="d-block g-color-primary--hover g-cursor-pointer g-mr-minus-5 g-pa-5" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -41,9 +41,9 @@
           <router-link v-bind:to="{ path: `/user/${like.user.id}` }">  
             <span v-if="like.is_new" class="d-inline-block g-pos-rel">
               <span class="u-badge-v2--xs u-badge--top-left g-bg-red g-mt-7 g-ml-7"></span>
-              <img class="d-flex g-brd-around g-brd-gray-light-v3 g-pa-2 g-width-40 g-height-40 rounded mCS_img_loaded g-mt-3 g-mr-15" v-bind:src="like.user._links.avatar" v-bind:alt="like.user.name || like.user.username">
+              <img class="d-flex g-brd-around g-brd-gray-light-v3 g-pa-2 g-width-40 g-height-40 rounded rounded-circle mCS_img_loaded g-mt-3 g-mr-15" v-bind:src="like.user._links.avatar" v-bind:alt="like.user.name || like.user.username">
             </span>
-            <img v-else class="d-flex g-brd-around g-brd-gray-light-v3 g-pa-2 g-width-40 g-height-40 rounded mCS_img_loaded g-mt-3 g-mr-15" v-bind:src="like.user._links.avatar" v-bind:alt="like.user.name || like.user.username">
+            <img v-else class="d-flex g-brd-around g-brd-gray-light-v3 g-pa-2 g-width-40 g-height-40 rounded rounded-circle mCS_img_loaded g-mt-3 g-mr-15" v-bind:src="like.user._links.avatar" v-bind:alt="like.user.name || like.user.username">
           </router-link>
           <div class="media-body">
             <div class="g-mb-15">
@@ -114,7 +114,7 @@ export default {
     }
   },
   methods: {
-    getUserRecivedLikes (id) {
+    getUserRecivedCommentsLikes (id) {
       let page = 1
       let per_page = 5
       if (typeof this.$route.query.page != 'undefined') {
@@ -125,7 +125,7 @@ export default {
         per_page = this.$route.query.per_page
       }
       
-      const path = `/api/users/${id}/recived-likes/?page=${page}&per_page=${per_page}`
+      const path = `/api/users/${id}/recived-comments-likes/?page=${page}&per_page=${per_page}`
       this.$axios.get(path)
         .then((response) => {
           // handle success
@@ -138,12 +138,12 @@ export default {
     }
   },
   created () {
-    this.getUserRecivedLikes(this.sharedState.user_id)
+    this.getUserRecivedCommentsLikes(this.sharedState.user_id)
   },
   // 当路由变化后(比如变更查询参数 page 和 per_page)重新加载数据
   beforeRouteUpdate (to, from, next) {
     next()
-    this.getUserRecivedLikes(this.sharedState.user_id)
+    this.getUserRecivedCommentsLikes(this.sharedState.user_id)
   }
 }
 </script>

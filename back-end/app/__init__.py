@@ -1,6 +1,6 @@
 from flask import Flask
 from app.api import bp as api_bp
-from app.extensions import cors, db, migrate
+from app.extensions import cors, db, migrate, mail
 
 
 def create_app(config_class=None):
@@ -39,6 +39,8 @@ def configure_extensions(app):
     db.init_app(app)
     # Init Flask-Migrate
     migrate.init_app(app, db)
+    # Init Flask-Mail
+    mail.init_app(app)
 
 
 def configure_before_handlers(app):

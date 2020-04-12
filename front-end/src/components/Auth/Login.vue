@@ -22,7 +22,7 @@
     <p>New User? <router-link to="/register">Click to Register!</router-link></p>
     <p>
         Forgot Your Password?
-        <a href="#">Click to Reset It</a>
+        <router-link v-bind:to="{ name: 'ResetPasswordRequest' }">Click to Reset It</router-link>
     </p>
   </div>
 </template>
@@ -38,7 +38,7 @@ export default {
       loginForm: {
         username: '',
         password: '',
-        errors: 0,  // if form validation is passed
+        errors: 0,  // 表单是否在前端验证通过，0 表示没有错误，验证通过
         usernameError: null,
         passwordError: null
       }
@@ -46,7 +46,7 @@ export default {
   },
   methods: {
     onSubmit (e) {
-      this.loginForm.errors = 0
+      this.loginForm.errors = 0  // 重置
 
       if (!this.loginForm.username) {
         this.loginForm.errors++
@@ -63,7 +63,7 @@ export default {
       }
 
       if (this.loginForm.errors > 0) {
-        // if form validation is not passed, will not call api by axios
+        // 表单验证没通过时，不继续往下执行，即不会通过 axios 调用后端API
         return false
       }
 

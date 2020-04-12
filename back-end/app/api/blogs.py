@@ -41,7 +41,7 @@ def create_blog():
 
 @bp.route('/blogs/', methods=['GET'])
 def get_blogs():
-    # 返回文章集合
+    '''返回文章集合，分页'''
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get('per_page',
@@ -54,7 +54,7 @@ def get_blogs():
 
 @bp.route('/blogs/<int:id>', methods=['GET'])
 def get_blog(id):
-    # 返回一篇文章
+    '''返回一篇文章'''
     blog = Blog.query.get_or_404(id)
     blog.views += 1
     db.session.add(blog)
@@ -86,7 +86,7 @@ def get_blog(id):
 @bp.route('/blogs/<int:id>', methods=['PUT'])
 @token_auth.login_required
 def update_blog(id):
-    # 修改一篇文章
+    '''修改一篇文章'''
     blog = Blog.query.get_or_404(id)
     if g.current_user != blog.author:
         return error_response(403)
@@ -152,3 +152,44 @@ def get_blog_comments(id):
         from operator import itemgetter
         item['descendants'] = sorted(descendants, key=itemgetter('timestamp'))
     return jsonify(data)
+
+
+###
+# 文章被喜欢/收藏 或 被取消喜欢/取消收藏
+###
+@bp.route('/blogs/<int:id>/like', methods=['GET'])
+@token_auth.login_required
+def like_blog(id):
+    '''喜欢文章'''
+    blog = Blog.query.get_or_404(id)
+    blog.liked_by(g.current_user)
+    db.session.add(blog)
+    # 切记要先提交，先添加喜欢记录到数据库，因为 new_blogs_likes() 会查询 blogs_likes 关联表
+    db.session.commit()
+    # 给文章作者发送新喜欢通知
+    blog.author.add_notification('unread_blogs_likes_count',
+                                 blog.author.new_blogs_likes())
+    db.session.commit()
+    return jsonify({
+        'status': 'success',
+        'message': 'You are now liking this blog.'
+    })
+
+
+@bp.route('/blogs/<int:id>/unlike', methods=['GET'])
+@token_auth.login_required
+def unlike_blog(id):
+    '''取消喜欢文章'''
+    blog = Blog.query.get_or_404(id)
+    blog.unliked_by(g.current_user)
+    db.session.add(blog)
+    # 切记要先提交，先添加喜欢记录到数据库，因为 new_blogs_likes() 会查询 blogs_likes 关联表
+    db.session.commit()
+    # 给文章作者发送新喜欢通知(需要自动减1)
+    blog.author.add_notification('unread_blogs_likes_count',
+                                 blog.author.new_blogs_likes())
+    db.session.commit()
+    return jsonify({
+        'status': 'success',
+        'message': 'You are not liking this blog anymore.'
+    })
