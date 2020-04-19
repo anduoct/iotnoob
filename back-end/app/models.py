@@ -248,8 +248,6 @@ class User(PaginatedAPIMixin, db.Model):
     confirmed = db.Column(db.Boolean, default=False)
     # 用户所属的角色
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
-    # 用户的RQ后台任务
-    tasks = db.relationship('Task', backref='user', lazy='dynamic')
 
     def set_password(self, password):
         '''设置用户密码，保存为 Hash 值'''
@@ -260,7 +258,7 @@ class User(PaginatedAPIMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def avatar(self, size):
-        # 头像
+        '''用户头像'''
         digest = md5(self.email.lower().encode('utf-8')).hexdigest()
         return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
             digest, size)
@@ -559,7 +557,13 @@ class User(PaginatedAPIMixin, db.Model):
             return None
         return User.query.get(payload.get('reset_password'))
 
+    def can(self, perm):
+        '''检查用户是否有指定的权限'''
+        return self.role is not None and self.role.has_permission(perm)
 
+    def is_administrator(self):
+        '''检查用户是否为管理员'''
+        return self.can(Permission.ADMIN)
 class Blog(PaginatedAPIMixin, db.Model):
     __tablename__ = 'blogs'
     id = db.Column(db.Integer, primary_key=True)

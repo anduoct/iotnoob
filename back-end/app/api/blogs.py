@@ -3,13 +3,15 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import error_response, bad_request
 from app.extensions import db
-from app.models import Blog, Comment
+from app.models import Permission, Blog, Comment
+from app.utils.decorator import permission_required
 
 
 @bp.route('/blogs/', methods=['POST'])
 @token_auth.login_required
+@permission_required(Permission.WRITE)
 def create_blog():
-    # 创建博客
+    '''添加一篇新文章'''
     data = request.get_json()
     if not data:
         return bad_request('You must post JSON data.')
@@ -88,7 +90,7 @@ def get_blog(id):
 def update_blog(id):
     '''修改一篇文章'''
     blog = Blog.query.get_or_404(id)
-    if g.current_user != blog.author:
+    if g.current_user != blog.author and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
 
     data = request.get_json()
@@ -114,7 +116,7 @@ def update_blog(id):
 def delete_blog(id):
     # 删除一篇文章
     blog = Blog.query.get_or_404(id)
-    if g.current_user != blog.author:
+    if g.current_user != blog.author and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
     db.session.delete(blog)
     # 给文章作者的所有粉丝发送新文章通知(需要自动减1)

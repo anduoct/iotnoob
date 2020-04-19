@@ -6,30 +6,31 @@ from app.api import bp
 from app.api.auth import token_auth
 from app.api.errors import bad_request, error_response
 from app.extensions import db
-from app.models import comments_likes, blogs_likes, User, Blog, Comment, Notification, Message
+from app.models import Permission, comments_likes, blogs_likes, User, Blog, Comment, Notification, Message
 from app.utils.email import send_email
+from app.utils.decorator import permission_required
 
 
 @bp.route('/users/', methods=['POST'])
 def create_user():
-    # 注册
+    '''注册一个新用户'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     message = {}
     if 'username' not in data or not data.get('username', None).strip():
-        message['username'] = 'Please provide a valid username.'
+        message['username'] = _('Please provide a valid username.')
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' not in data or not re.match(pattern, data.get('email', None)):
-        message['email'] = 'Please provide a valid email address.'
+        message['email'] = _('Please provide a valid email address.')
     if 'password' not in data or not data.get('password', None).strip():
-        message['password'] = 'Please provide a valid password.'
+        message['password'] = _('Please provide a valid password.')
 
     if User.query.filter_by(username=data.get('username', None)).first():
-        message['username'] = 'Please use a different username.'
+        message['username'] = _('Please use a different username.')
     if User.query.filter_by(email=data.get('email', None)).first():
-        message['email'] = 'Please use a different email address.'
+        message['email'] = _('Please use a different email address.')
     if message:
         return bad_request(message)
 
@@ -81,7 +82,7 @@ def create_user():
 @bp.route('/users/', methods=['GET'])
 @token_auth.login_required
 def get_users():
-    # return all users' unit, divide page
+    '''返回用户集合，分页'''
     page = request.args.get('page', 1, type=int)
     per_page = min(
         request.args.get('per_page',
@@ -94,7 +95,7 @@ def get_users():
 @bp.route('/users/<int:id>', methods=['GET'])
 @token_auth.login_required
 def get_user(id):
-    # return a user
+    '''返回一个用户'''
     user = User.query.get_or_404(id)
     if g.current_user == user:
         return jsonify(user.to_dict(include_email=True))
@@ -107,26 +108,26 @@ def get_user(id):
 @bp.route('/users/<int:id>', methods=['PUT'])
 @token_auth.login_required
 def update_user(id):
-    # update a user
+    '''修改一个用户'''
     user = User.query.get_or_404(id)
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     message = {}
     if 'username' in data and not data.get('username', None).strip():
-        message['username'] = 'Please provide a valid username.'
+        message['username'] = _('Please provide a valid username.')
 
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' in data and not re.match(pattern, data.get('email', None)):
-        message['email'] = 'Please provide a valid email address.'
+        message['email'] = _('Please provide a valid email address.')
 
     if 'username' in data and data['username'] != user.username and \
             User.query.filter_by(username=data['username']).first():
-        message['username'] = 'Please use a different username.'
+        message['username'] = _('Please use a different username.')
     if 'email' in data and data['email'] != user.email and \
             User.query.filter_by(email=data['email']).first():
-        message['email'] = 'Please use a different email address.'
+        message['email'] = _('Please use a different email address.')
 
     if message:
         return bad_request(message)
@@ -139,9 +140,9 @@ def update_user(id):
 @bp.route('/users/<int:id>', methods=['DELETE'])
 @token_auth.login_required
 def delete_user(id):
-    # 删除
+    '''删除一个用户'''
     user = User.query.get_or_404(id)
-    if g.current_user != user:
+    if g.current_user != user and not g.current_user.can(Permission.ADMIN):
         return error_response(403)
     db.session.delete(user)
     db.session.commit()
@@ -168,23 +169,24 @@ def get_user_notifications(id):
 ###
 @bp.route('/follow/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def follow(id):
     '''开始关注一个用户'''
     user = User.query.get_or_404(id)
     if g.current_user == user:
-        return bad_request('You cannot follow yourself.')
+        return bad_request(_('You cannot follow yourself.'))
     if g.current_user.is_following(user):
-        return bad_request('You have already followed that user.')
+        return bad_request(_('You have already followed that user.'))
     g.current_user.follow(user)
     # 给该用户发送新粉丝通知
     user.add_notification('unread_follows_count', user.new_follows())
     db.session.commit()
+    username = user.name if user.name else user.username
     return jsonify({
         'status':
         'success',
         'message':
-        'You are now following %s.' %
-        (user.name if user.name else user.username)
+        _('You are now following %(username)s.', username=username)
     })
 
 
@@ -193,6 +195,7 @@ def follow(id):
 ###
 @bp.route('/unfollow/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def unfollow(id):
     '''取消关注一个用户'''
     user = User.query.get_or_404(id)
@@ -208,8 +211,7 @@ def unfollow(id):
         'status':
         'success',
         'message':
-        'You are not following %s anymore.' %
-        (user.name if user.name else user.username)
+        _('You are not following %(username)s anymore.', username=username)
     })
 
 
@@ -219,6 +221,7 @@ def unfollow(id):
 @bp.route('/users/<int:id>/followeds/', methods=['GET'])
 @token_auth.login_required
 def get_followeds(id):
+    '''返回用户已关注的人的列表'''
     user = User.query.get_or_404(id)
     page = request.args.get('page', 1, type=int)
     per_page = min(
@@ -719,6 +722,7 @@ def get_user_history_messages(id):
 ###
 @bp.route('/block/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def block(id):
     '''开始拉黑一个用户'''
     user = User.query.get_or_404(id)
@@ -728,12 +732,12 @@ def block(id):
         return bad_request('You have already blocked that user.')
     g.current_user.block(user)
     db.session.commit()
+    username = user.name if user.name else user.username
     return jsonify({
         'status':
         'success',
         'message':
-        'You are now blocking %s.' %
-        (user.name if user.name else user.username)
+        _('You are now blocking %(username)s.', username=username)
     })
 
 
@@ -742,6 +746,7 @@ def block(id):
 ###
 @bp.route('/unblock/<int:id>', methods=['GET'])
 @token_auth.login_required
+@permission_required(Permission.FOLLOW)
 def unblock(id):
     '''取消拉黑一个用户'''
     user = User.query.get_or_404(id)
@@ -755,8 +760,7 @@ def unblock(id):
         'status':
         'success',
         'message':
-        'You are not blocking %s anymore.' %
-        (user.name if user.name else user.username)
+        _('You are not blocking %(username)s anymore.', username=username)
     })
 
 
@@ -766,10 +770,10 @@ def resend_confirmation():
     '''重新发送确认账户的邮件'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request(_('You must post JSON data.'))
     if 'confirm_email_base_url' not in data or not data.get(
             'confirm_email_base_url').strip():
-        return bad_request('Please provide a valid confirm email base url.')
+        return bad_request(_('Please provide a valid confirm email base url.'))
 
     token = g.current_user.generate_confirm_jwt()
 
@@ -804,7 +808,7 @@ def resend_confirmation():
         'status':
         'success',
         'message':
-        'A new confirmation email has been sent to you by email.'
+        _('A new confirmation email has been sent to you by email.')
     })
 
 
@@ -813,7 +817,7 @@ def resend_confirmation():
 def confirm(token):
     '''用户收到验证邮件后，验证其账户'''
     if g.current_user.confirmed:
-        return bad_request('You have already confirmed your account.')
+        return bad_request(_('You have already confirmed your account.'))
     if g.current_user.verify_confirm_jwt(token):
         g.current_user.ping()
         db.session.commit()
@@ -821,11 +825,12 @@ def confirm(token):
         token = g.current_user.get_jwt()
         return jsonify({
             'status': 'success',
-            'message': 'You have confirmed your account. Thanks!',
+            'message': _('You have confirmed your account. Thanks!'),
             'token': token
         })
     else:
-        return bad_request('The confirmation link is invalid or has expired.')
+        return bad_request(
+            _('The confirmation link is invalid or has expired.'))
 
 
 @bp.route('/reset-password-request', methods=['POST'])
@@ -833,16 +838,16 @@ def reset_password_request():
     '''请求重置账户密码，需要提供注册时填写的邮箱地址'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     message = {}
     if 'confirm_email_base_url' not in data or not data.get(
             'confirm_email_base_url').strip():
-        message[
-            'confirm_email_base_url'] = 'Please provide a valid confirm email base url.'
+        message['confirm_email_base_url'] = _(
+            'Please provide a valid confirm email base url.')
     pattern = '^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$'
     if 'email' not in data or not re.match(pattern, data.get('email', None)):
-        message['email'] = 'Please provide a valid email address.'
+        message['email'] = _('Please provide a valid email address.')
     if message:
         return bad_request(message)
 
@@ -882,7 +887,8 @@ def reset_password_request():
         'status':
         'success',
         'message':
-        'An email with instructions to reset your password has been sent to you.'
+        _('An email with instructions to reset your password has been sent to you.'
+          )
     })
 
 
@@ -891,18 +897,18 @@ def reset_password(token):
     '''用户点击邮件中的链接，通过验证 JWT 来重置对应的账户的密码'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request(_('You must post JSON data.'))
     if 'password' not in data or not data.get('password', None).strip():
-        return bad_request('Please provide a valid password.')
+        return bad_request(_('Please provide a valid password.'))
     user = User.verify_reset_password_jwt(token)
     if not user:
         return bad_request(
-            'The reset password link is invalid or has expired.')
+            _('The reset password link is invalid or has expired.'))
     user.set_password(data.get('password'))
     db.session.commit()
     return jsonify({
         'status': 'success',
-        'message': 'Your password has been reset.'
+        'message': _('Your password has been reset.')
     })
 
 
@@ -912,22 +918,22 @@ def update_password():
     '''已登录的用户更新自己的密码'''
     data = request.get_json()
     if not data:
-        return bad_request('You must post JSON data.')
+        return bad_request(_('You must post JSON data.'))
 
     if 'old_password' not in data or not data.get('old_password',
                                                   None).strip():
-        return bad_request('Please provide a valid old password.')
+        return bad_request(_('Please provide a valid old password.'))
     if 'new_password' not in data or not data.get('new_password',
                                                   None).strip():
-        return bad_request('Please provide a valid new password.')
+        return bad_request(_('Please provide a valid new password.'))
     if data.get('old_password') == data.get('new_password'):
-        return bad_request('The new password is equal to the old password.')
+        return bad_request(_('The new password is equal to the old password.'))
     # 验证旧密码
     if not g.current_user.check_password(data.get('old_password')):
-        return bad_request('The old password is wrong.')
+        return bad_request(_('The old password is wrong.'))
     g.current_user.set_password(data.get('new_password'))
     db.session.commit()
     return jsonify({
         'status': 'success',
-        'message': 'Your password has been updated.'
+        'message': _('Your password has been updated.')
     })

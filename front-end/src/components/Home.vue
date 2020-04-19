@@ -2,7 +2,7 @@
   <div class="container">
 
     <!-- Modal: Edit Blog -->
-    <div class="modal fade" id="editBlogModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div data-backdrop="static" class="modal fade" id="editBlogModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
         <div class="modal-content">
           <div class="modal-header">
@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    <form id="addBlogForm" v-if="sharedState.is_authenticated" @submit.prevent="onSubmitAddBlog" class="g-mb-40">
+    <form id="addBlogForm" v-if="sharedState.is_authenticated && sharedState.user_perms.includes('write')" @submit.prevent="onSubmitAddBlog" class="g-mb-40">
       <div class="form-group" v-bind:class="{'u-has-error-v1': blogForm.titleError}">
         <input type="text" v-model="blogForm.title" class="form-control" id="blogFormTitle" placeholder="标题">
         <small class="form-control-feedback" v-show="blogForm.titleError">{{ blogForm.titleError }}</small>
@@ -212,8 +212,15 @@ export default {
         })
         .catch((error) => {
           // handle error
-          console.log(error.response.data)
-          this.$toasted.error(error.response.data.message, { icon: 'fingerprint' })
+          for (var field in error.response.data.message) {
+            if (field == 'title') {
+              this.blogForm.titleError = error.response.data.message[field]
+            } else if (field == 'content') {
+              this.blogForm.contentError = error.response.data.message[field]
+            } else {
+              this.$toasted.error(error.response.data.message[field], { icon: 'fingerprint' })
+            }
+          }
         })
     },
     onEditBlog (blog) {
@@ -254,9 +261,6 @@ export default {
         return false
       }
 
-      // 先隐藏 Modal
-      $('#editBlogModal').modal('hide')
-
       const path = `/api/blogs/${this.editBlogForm.id}`
       const payload = {
         title: this.editBlogForm.title,
@@ -265,6 +269,9 @@ export default {
       }
       this.$axios.put(path, payload)
         .then((response) => {
+          // 先隐藏 Modal
+          $('#editBlogModal').modal('hide')
+
           // handle success
           this.getBlogs()
           this.$toasted.success('Successed update the blog.', { icon: 'fingerprint' })
@@ -274,8 +281,22 @@ export default {
         })
         .catch((error) => {
           // handle error
-          console.log(error.response.data)
-          this.$toasted.error(error.response.data.message, { icon: 'fingerprint' })
+          for (var field in error.response.data.message) {
+            if (field == 'title') {
+              this.editBlogForm.titleError = error.response.data.message[field]
+              // boostrap4 modal依赖jQuery，不兼容 vue.js 的双向绑定。所以要手动添加警示样式和错误提示
+              $('#editBlogFormTitle').closest('.form-group').addClass('u-has-error-v1')  // Bootstrap 4
+              $('#editBlogFormTitle').after('<small class="form-control-feedback">' + this.editBlogForm.titleError + '</small>')
+            } else if (field == 'content') {
+              this.editBlogForm.contentError = error.response.data.message[field]
+              // boostrap4 modal依赖jQuery，不兼容 vue.js 的双向绑定。所以要手动添加警示样式和错误提示
+              // 给 bootstrap-markdown 编辑器内容添加警示样式，而不是添加到 #blogFormContent 上
+              $('#editBlogForm .md-editor').closest('.form-group').addClass('u-has-error-v1')  // Bootstrap 4
+              $('#editBlogForm .md-editor').after('<small class="form-control-feedback">' + this.editBlogForm.contentError + '</small>')
+            } else {
+              this.$toasted.error(error.response.data.message[field], { icon: 'fingerprint' })
+            }
+          }
         })
     },
     onResetUpdateBlog () {
